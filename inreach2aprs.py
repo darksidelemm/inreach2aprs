@@ -5,7 +5,6 @@
 import os, sys
 import aprslib
 import datetime
-import LatLon23
 import pprint
 import argparse
 import requests
@@ -22,6 +21,10 @@ parser.add_argument('aprs_ssid', help='ARPS SSID or none; eg "-6"; see http://ww
 parser.add_argument('aprs_password', help='APRS Passcode')
 parser.add_argument('--mapshare_url', help='inReach MapShare URL; see https://support.garmin.com/en-AU/?faq=p2lncMOzqh71P06VifrQE7')
 parser.add_argument('--mapshare_password', help='OPTIONAL - inReach MapShare password')
+parser.add_argument('--comment', default="inreach2aprs-0.1.0", help='OPTIONAL - APRS position comment')
+
+APRS_SYMBOL_TABLE = "/"
+APRS_SYMBOL = "v"
 
 args = parser.parse_args()
 if not args.aprs_callsign:
@@ -75,39 +78,42 @@ kml = kmlparser.parse(BytesIO(r.content)).getroot()
 d = datetime.datetime.strptime(str(kml.Document.Folder.Placemark[0].TimeStamp.when),'%Y-%m-%dT%H:%M:%SZ')
 aprs_timestamp = d.strftime("%d%H%Mz")
 
-inreach_lat = round(float(kml.Document.Folder.Placemark[0].ExtendedData.Data[8].value),2)
+inreach_lat = float(kml.Document.Folder.Placemark[0].ExtendedData.Data[8].value)
 # print(inreach_lat)
-inreach_lon = round(float(kml.Document.Folder.Placemark[0].ExtendedData.Data[9].value),2)
+inreach_lon = float(kml.Document.Folder.Placemark[0].ExtendedData.Data[9].value)
 # print(inreach_lon)
 
-aprs_pos = LatLon23.LatLon( LatLon23.Latitude(inreach_lat), LatLon23.Longitude(inreach_lon))
+# Convert float latitude to APRS format (DDMM.MM)
+lat = float(inreach_lat)
+lat_degree = abs(int(lat))
+lat_minute = abs(lat - int(lat)) * 60.0
+lat_min_str = ("%02.4f" % lat_minute).zfill(7)[:5]
+lat_dir = "S"
+if lat > 0.0:
+    lat_dir = "N"
+lat_str = "%02d%s" % (lat_degree, lat_min_str) + lat_dir
 
-lat_deg, lon_deg = aprs_pos.to_string('d%')
-lat_mins, lon_mins = aprs_pos.to_string('M%')
-lat_hem, lon_hem = aprs_pos.to_string('H%')
-aprs_lat_mins = format(float(lat_mins),'.2f')
-aprs_lon_mins = format(float(lon_mins),'.2f')
+# Convert float longitude to APRS format (DDDMM.MM)
+lon = float(inreach_lon)
+lon_degree = abs(int(lon))
+lon_minute = abs(lon - int(lon)) * 60.0
+lon_min_str = ("%02.4f" % lon_minute).zfill(7)[:5]
+lon_dir = "E"
+if lon < 0.0:
+    lon_dir = "W"
+lon_str = "%03d%s" % (lon_degree, lon_min_str) + lon_dir
 
-try:
-    aprs_lat = lat_deg.replace("-","") + aprs_lat_mins + lat_hem
-    # print(aprs_lat, len(aprs_lat))
-    aprs_lon = lon_deg.replace("-","") + aprs_lon_mins + lon_hem
-    # print(aprs_lon, len(aprs_lon))
-    assert len(aprs_lat)<=8
-    assert len(aprs_lat)<=9
-except AssertionError:
-    print("Position report values exceed specification length")
 
-position_report = args.aprs_callsign + args.aprs_ssid + ">"+ "APZ001,TCPIP*:/" + aprs_timestamp + aprs_lat + "/" + aprs_lon + "Sinreach2aprs-0.0.2"
+position_report = args.aprs_callsign + args.aprs_ssid + ">"+ "APZ001,TCPIP*:/" + aprs_timestamp + lat_str + APRS_SYMBOL_TABLE + lon_str + APRS_SYMBOL + args.comment
 
-params = (args.aprs_callsign + args.aprs_ssid,aprs_timestamp,aprs_lat,aprs_lon)
+params = (args.aprs_callsign + args.aprs_ssid,aprs_timestamp,lat_str,lon_str)
 c.execute(
     "SELECT * FROM positions WHERE callsign=? AND ts=? AND lat=? AND long=?", params
 )
 
 if c.fetchone() == None:
     # (?, ?)", (who, age)
-    params = (args.aprs_callsign + args.aprs_ssid, aprs_timestamp, aprs_lat, aprs_lon)
+    params = (args.aprs_callsign + args.aprs_ssid, aprs_timestamp, lat_str, lon_str)
     pp.pprint(params)
     c.execute(
         """insert into positions values (?,?,?,?)""", params
@@ -124,6 +130,7 @@ if c.fetchone() == None:
     if sent:
         conn.commit()
         print("INFO: Sent packet \n")
+        print(position_report)
         pp.pprint(aprslib.parse(position_report))
         conn.close()
         sys.exit(0)
@@ -133,5 +140,6 @@ if c.fetchone() == None:
 
 else:
     print("WARN: Not sending duplicate report")
+    print(position_report)
     pp.pprint(aprslib.parse(position_report))
     sys.exit(1)

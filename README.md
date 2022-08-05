@@ -1,8 +1,12 @@
-# inreach2arps
-
-I don't like that there is not an opensoure Delorme/Garmin inReach to APRS bridge. So naturally now there are 15 obscure versions. This 16th version is probably vapourware.
+# inreach2aprs
+Yet another Garmin Inreach to APRS utility. This time, one that actually generates APRS positions properly, instead of dropping leading zeros.
 
 For reference - The Delorme API is documented at https://files.delorme.com/support/inreachwebdocs/KML%20Feeds.pdf
+
+## Requirements
+```
+$ pip install -r requirements.txt
+```
 
 ## Goal
 
