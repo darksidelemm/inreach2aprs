@@ -23,6 +23,8 @@ parser.add_argument('--mapshare_url', help='inReach MapShare URL; see https://su
 parser.add_argument('--mapshare_password', help='OPTIONAL - inReach MapShare password')
 parser.add_argument('--comment', default="inreach2aprs-0.1.0", help='OPTIONAL - APRS position comment')
 
+# This should be brought out as command-line options.
+# Refer: http://wa8lmf.net/aprs/APRS_symbols.htm
 APRS_SYMBOL_TABLE = "/"
 APRS_SYMBOL = "v"
 
